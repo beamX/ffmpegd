@@ -1,0 +1,5 @@
+.erlang.mk/
+ebin/
+deps/
+_rel/
+ffmpegd.d
