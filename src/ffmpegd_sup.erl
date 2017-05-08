@@ -2,7 +2,9 @@
 -behaviour(supervisor).
 
 -export([start_link/0,
-         start_s3_child/1]).
+         start_s3_child/2,
+         start_s3_child/3
+        ]).
 
 -export([init/1]).
 
@@ -24,10 +26,14 @@
                supervisor)).
 
 %% API.
-start_s3_child(Duration) ->
+start_s3_child(Caller, Duration) ->
+    start_s3_child(Caller, Duration, {uploaders, disk, []} ).
+
+start_s3_child(Caller, Duration, {M, F, A}) ->
     Args = [{duration, Duration},
-            {part_handler, {uploaders, disk}},
-            {user_args, []} ],
+            {part_handler, {M, F}},
+            {caller, Caller},
+            {user_args, A} ],
     supervisor:start_child(fstream_uploader_sup, [Args]).
 
 

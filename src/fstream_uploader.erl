@@ -45,9 +45,13 @@ start_link(Args) ->
 
 %%
 init(Args) ->
+    process_flag(trap_exit, true),
+
     {_, Duration} = lists:keyfind(duration, 1, Args),
     {_, MF}       = lists:keyfind(part_handler, 1, Args),
     {_, UArgs}    = lists:keyfind(user_args, 1, Args),
+    {_, Caller}   = lists:keyfind(caller, 1, Args),
+
     {ok, Port}    = port_manager:get_free_port(self()),
     lager:log(info, [], "got port ~p~n", [Port]),
     %% Port       = 10009,
@@ -59,7 +63,8 @@ init(Args) ->
            tot_duration => Duration,
            duration     => 0.0,
            part_handler => MF,
-           user_args    => UArgs
+           user_args    => UArgs,
+           caller       => Caller
           }}.
 
 handle_call({get_port}, _From, #{socket := Port} = State) ->
@@ -80,6 +85,7 @@ handle_cast({upload_part, MetaData}, #{parts        := Parts,
                                        tot_duration := TDuration,
                                        duration     := Duration,
                                        part_handler := {M, F},
+                                       caller       := CPid,
                                        user_args    := UArgs} = State) ->
     [Part | Rest]       = lists:reverse(Parts),
     RParts              = lists:reverse(Rest),
@@ -92,7 +98,9 @@ handle_cast({upload_part, MetaData}, #{parts        := Parts,
             {stop, normal, State};
        %% NOTE: careful of this condition
        round(NewDuration) >= trunc(TDuration) ->
+            inform_caller(CPid, {transcoding_status, {ok, success}}),
             {stop, normal, State};
+
        true ->
             {noreply, State#{parts     := RParts,
                              duration  := Duration + SegDuration,
@@ -110,13 +118,17 @@ handle_cast(Request, State) ->
     lager:log(info, [], "received unkown cast ~p~n", [Request]),
     {noreply, State}.
 
+handle_info(timeout, #{caller := CPid} = State) ->
+    lager:log(error, [], "fstream_uploader timeout while decoding ~p~n", [State]),
+    inform_caller(CPid, {transcoding_status, {error, timeout}}),
+    {stop, normal, State};
 
 handle_info(Info, State) ->
     lager:log(info, [], "~p received unkown message ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
-terminate(_Reason, #{socket := BPort} = _State) ->
-    lager:log(info, [], "=================== shutting down ~p~n", [BPort]),
+terminate(Reason, #{socket := BPort} = _State) ->
+    lager:log(info, [], "=================== shutting down ~p ~p ~n", [BPort, Reason]),
     ranch:stop_listener(BPort),
     port_manager:put_free_port(?B2I(BPort)).
 
@@ -143,3 +155,7 @@ get_names([Duration, Name | Rest], Acc) ->
             lager:log(info, [], "error while decoding part name"),
             get_names(Rest, Acc)
     end.
+
+
+inform_caller(CPid, Msg) ->
+    CPid ! Msg.
