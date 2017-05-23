@@ -41,7 +41,8 @@ stop(Pid) ->
 %% -spec start_link([tuple()]) -> {ok, pid()}.
 start_link(Args) ->
     lager:log(info, [], "starting with args ~p~n", [Args]),
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
+    gen_server:start_link(?MODULE, Args, []).
+    %% gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
 %%
 init(Args) ->
