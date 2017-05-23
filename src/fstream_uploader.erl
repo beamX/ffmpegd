@@ -79,7 +79,7 @@ handle_call(_Request, _From, State) ->
 
 handle_cast({upload_part, MetaData}, #{parts := []} = State) ->
     lager:log(info, [], "--------------- no parts to upload ~p~n", [MetaData]),
-    {noreply, State};
+    {noreply, State, ?TIMEOUT};
 
 handle_cast({upload_part, MetaData}, #{parts        := Parts,
                                        tot_duration := TDuration,
