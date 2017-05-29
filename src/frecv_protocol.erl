@@ -19,7 +19,7 @@ loop(Socket, Transport, HandlerPid, Acc) ->
             if size(Data) >= 56 ->
                     case <<Data:56/bitstring>> of
                         <<"#EXTM3U">> ->
-                            lager:log(info, [], "received data[~p, ~p] ~p~n", [self(), size(Acc), Data]),
+                            %% lager:log(info, [], "received data[~p, ~p] ~p~n", [self(), size(Acc), Data]),
                             fstream_uploader:upload_part(HandlerPid, Data),
                             loop(Socket, Transport, HandlerPid, <<>>);
                         _ ->

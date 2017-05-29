@@ -46,37 +46,44 @@ start_link(Args) ->
 
 %%
 init(Args) ->
-    process_flag(trap_exit, true),
+    fstream_utils:init(Args).
+    %% process_flag(trap_exit, true),
 
-    {_, Duration} = lists:keyfind(duration, 1, Args),
-    {_, MF}       = lists:keyfind(part_handler, 1, Args),
-    {_, UArgs}    = lists:keyfind(user_args, 1, Args),
-    {_, Caller}   = lists:keyfind(caller, 1, Args),
+    %% {_, Duration} = lists:keyfind(duration, 1, Args),
+    %% {_, MF}       = lists:keyfind(part_handler, 1, Args),
+    %% {_, UArgs}    = lists:keyfind(user_args, 1, Args),
+    %% {_, Caller}   = lists:keyfind(caller, 1, Args),
+    %% {_, Protocol} = lists:keyfind(protocol, 1, Args),
 
-    {ok, Port}    = port_manager:get_free_port(self()),
-    lager:log(info, [], "got port ~p~n", [Port]),
-    %% Port       = 10009,
-    BPort         = erlang:integer_to_binary(Port),
-    {ok, _}       = ranch:start_listener(BPort, 1, ranch_tcp, [{port, Port}],
-                                         frecv_protocol, [{forward_to, self()}]),
-    {ok, #{socket       => BPort,
-           parts        => [],
-           tot_duration => Duration,
-           duration     => 0.0,
-           part_handler => MF,
-           user_args    => UArgs,
-           caller       => Caller
-          }}.
+    %% {ok, Port}    = port_manager:get_free_port(self()),
+    %% lager:log(info, [], "got port ~p~n", [Port]),
+    %% %% Port       = 10009,
+    %% BPort         = erlang:integer_to_binary(Port),
+    %% lager:log(info, [], "PORT: ~p~n", [Port]),
+    %% %% {ok, _}       = ranch:start_listener(BPort, 1, ranch_tcp, [{port, Port}],
+    %% %%                                      frecv_protocol, [{forward_to, self()}]),
+    %% {ok, _}       = ranch:start_listener(BPort, 1, ranch_tcp, [{port, Port}],
+    %%                                      Protocol, [{forward_to, self()}]),
+    %% {ok, #{socket       => BPort,
+    %%        parts        => [],
+    %%        tot_duration => Duration,
+    %%        duration     => 0.0,
+    %%        part_handler => MF,
+    %%        user_args    => UArgs,
+    %%        caller       => Caller
+    %%       }}.
 
-handle_call({get_port}, _From, #{socket := Port} = State) ->
-    {reply, {ok, ?B2I(Port)}, State};
+%% handle_call({get_port}, _From, #{socket := Port} = State) ->
+%%     {reply, {ok, ?B2I(Port)}, State};
 
-handle_call({stop}, _From, State) ->
-    {stop, normal, State};
+%% handle_call({stop}, _From, State) ->
+%%     {stop, normal, State};
 
-handle_call(_Request, _From, State) ->
-    {reply, ignored, State}.
+%% handle_call(_Request, _From, State) ->
+%%     {reply, ignored, State}.
 
+handle_call(Request, From, State) ->
+    fstream_utils:handle_call(Request, From, State).
 
 handle_cast({upload_part, MetaData}, #{parts := []} = State) ->
     lager:log(info, [], "--------------- no parts to upload ~p~n", [MetaData]),
@@ -99,7 +106,7 @@ handle_cast({upload_part, MetaData}, #{parts        := Parts,
             {stop, normal, State};
        %% NOTE: careful of this condition
        round(NewDuration) >= trunc(TDuration) ->
-            inform_caller(CPid, {transcoding_status, {ok, success}}),
+            fstream_utils:inform_caller(CPid, {transcoding_status, {ok, success}}),
             {stop, normal, State};
 
        true ->
@@ -119,19 +126,25 @@ handle_cast(Request, State) ->
     lager:log(info, [], "received unkown cast ~p~n", [Request]),
     {noreply, State}.
 
-handle_info(timeout, #{caller := CPid} = State) ->
-    lager:log(error, [], "fstream_uploader timeout while decoding ~p~n", [State]),
-    inform_caller(CPid, {transcoding_status, {error, timeout}}),
-    {stop, normal, State};
+
+%% handle_info(timeout, #{caller := CPid} = State) ->
+%%     lager:log(error, [], "fstream_uploader timeout while decoding ~p~n", [State]),
+%%     inform_caller(CPid, {transcoding_status, {error, timeout}}),
+%%     {stop, normal, State};
+%% handle_info(Info, State) ->
+%%     lager:log(info, [], "~p received unkown message ~p~n", [?MODULE, Info]),
+%%     {noreply, State}.
 
 handle_info(Info, State) ->
-    lager:log(info, [], "~p received unkown message ~p~n", [?MODULE, Info]),
-    {noreply, State}.
+    fstream_utils:handle_info(Info, State).
 
-terminate(Reason, #{socket := BPort} = _State) ->
-    lager:log(info, [], "=================== shutting down ~p ~p ~n", [BPort, Reason]),
-    ranch:stop_listener(BPort),
-    port_manager:put_free_port(?B2I(BPort)).
+
+terminate(Reason, State) ->
+    fstream_utils:terminate(Reason, State).
+%% terminate(Reason, #{socket := BPort} = _State) ->
+%%     lager:log(info, [], "=================== shutting down ~p ~p ~n", [BPort, Reason]),
+%%     ranch:stop_listener(BPort),
+%%     port_manager:put_free_port(?B2I(BPort)).
 
 
 code_change(_OldVsn, State, _Extra) ->
@@ -158,5 +171,5 @@ get_names([Duration, Name | Rest], Acc) ->
     end.
 
 
-inform_caller(CPid, Msg) ->
-    CPid ! Msg.
+%% inform_caller(CPid, Msg) ->
+%%     CPid ! Msg.

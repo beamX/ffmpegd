@@ -3,7 +3,8 @@
 
 -export([start_link/0,
          start_s3_child/2,
-         start_s3_child/3
+         start_s3_child/3,
+         start_s3_child_audio/3
         ]).
 
 -export([init/1]).
@@ -30,11 +31,22 @@ start_s3_child(Caller, Duration) ->
     start_s3_child(Caller, Duration, {uploaders, disk, []} ).
 
 start_s3_child(Caller, Duration, {M, F, A}) ->
+    start_s3_child_transcoder(Caller, Duration, fstream_uploader_sup,
+                              frecv_protocol, {M, F, A}, []).
+
+start_s3_child_audio(Caller, Duration, {M, F, A}) ->
+    ExtArgs = [{tmp_store_path, "/tmp/test.mp3"}],
+    start_s3_child_transcoder(Caller, Duration, fstream_uploader_audio_sup,
+                              frecv_audio_protocol, {M, F, A}, ExtArgs).
+
+start_s3_child_transcoder(Caller, Duration, Supervisor, Protocol, {M, F, A}, ExtArgs) ->
     Args = [{duration, Duration},
             {part_handler, {M, F}},
             {caller, Caller},
-            {user_args, A} ],
-    supervisor:start_child(fstream_uploader_sup, [Args]).
+            {user_args, A},
+            {protocol, Protocol} | ExtArgs],
+    supervisor:start_child(Supervisor, [Args]).
+    %% supervisor:start_child(fstream_uploader_sup, [Args]).
 
 
 -spec start_link() -> {ok, pid()}.
@@ -47,6 +59,7 @@ init([]) ->
     %%                                 ?SIMPLE_CHILD(Port, fstream_uploader)
     %%                         end, ?PORTS),
     Processes = [?SIMPLE_SUP(fstream_uploader_sup, fstream_uploader),
+                 ?SIMPLE_SUP(fstream_uploader_audio_sup, fstream_uploader_audio),
                  ?SIMPLE_CHILD(port_manager, port_manager)
                 ],
     {ok, {{one_for_one, 10, 10}, Processes}}.
