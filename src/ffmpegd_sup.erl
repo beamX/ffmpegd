@@ -4,7 +4,7 @@
 -export([start_link/0,
          start_s3_child/2,
          start_s3_child/3,
-         start_s3_child_audio/3
+         start_s3_child_audio/4
         ]).
 
 -export([init/1]).
@@ -34,8 +34,8 @@ start_s3_child(Caller, Duration, {M, F, A}) ->
     start_s3_child_transcoder(Caller, Duration, fstream_uploader_sup,
                               frecv_protocol, {M, F, A}, []).
 
-start_s3_child_audio(Caller, Duration, {M, F, A}) ->
-    ExtArgs = [{tmp_store_path, "/tmp/test.mp3"}],
+start_s3_child_audio(Caller, Duration, {M, F, A}, Tmp_store_path) ->
+    ExtArgs = [{tmp_store_path, Tmp_store_path}],
     start_s3_child_transcoder(Caller, Duration, fstream_uploader_audio_sup,
                               frecv_audio_protocol, {M, F, A}, ExtArgs).
 

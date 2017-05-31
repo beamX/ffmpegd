@@ -98,25 +98,29 @@ handle_cast({upload_part, MetaData}, #{parts        := Parts,
     [Part | Rest]       = lists:reverse(Parts),
     RParts              = lists:reverse(Rest),
     {Name, SegDuration} = get_segment_name(MetaData),
-    {ok, UArgsNew}      = M:F(Name, Part, MetaData, UArgs),
 
-    NewDuration = Duration + SegDuration,
-    lager:log(info, [], "Duration: ~p ~p ~n", [NewDuration, TDuration]),
-    if NewDuration =:= TDuration ->
-            {stop, normal, State};
-       %% NOTE: careful of this condition
-       round(NewDuration) >= trunc(TDuration) ->
-            fstream_utils:inform_caller(CPid, {transcoding_status, {ok, success}}),
-            {stop, normal, State};
+    try M:F(Name, Part, MetaData, UArgs) of
+        {ok, UArgsNew} ->
 
-       true ->
-            {noreply, State#{parts     := RParts,
-                             duration  := Duration + SegDuration,
-                             user_args := UArgsNew }, ?TIMEOUT}
+            NewDuration = Duration + SegDuration,
+            lager:log(info, [], "Duration: ~p ~p ~n", [NewDuration, TDuration]),
+            if NewDuration =:= TDuration ->
+                    {stop, normal, State};
+               %% NOTE: careful of this condition
+               round(NewDuration) >= trunc(TDuration) ->
+                    fstream_utils:inform_caller(CPid, {transcoding_status, {ok, success}}),
+                    {stop, normal, State};
+
+               true ->
+                    {noreply, State#{parts     := RParts,
+                                     duration  := Duration + SegDuration,
+                                     user_args := UArgsNew }, ?TIMEOUT}
+            end
+    catch Type:Error ->
+            lager:log(info, [], "~p:~p~n", [Type, Error]),
+            fstream_utils:inform_caller(CPid, {transcoding_status, {error, video_s3_upload}}),
+            {stop, normal, State}
     end;
-    %% {noreply, State#{parts     := RParts,
-    %%                  duration  := Duration + SegDuration,
-    %%                  user_args := UArgsNew }};
 
 
 handle_cast({recv_part, Bin}, #{parts := Parts} = State) ->

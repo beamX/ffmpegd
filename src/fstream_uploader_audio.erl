@@ -38,11 +38,17 @@ handle_call(Request, From, State) ->
     fstream_utils:handle_call(Request, From, State).
 
 
-handle_cast({upload_part, Data}, #{user_args := UArgs,
+handle_cast({upload_part, Data}, #{user_args    := UArgs,
+                                   caller       := CPid,
                                    part_handler := {M, F}} = State) ->
     %% lager:log(info, [], "UPLOADING: ~p~n", [size(Data)]),
-    {ok, UArgsNew} = M:F(Data, UArgs),
-    {noreply, State#{user_args := UArgsNew}, ?TIMEOUT};
+    try  M:F(Data, UArgs) of
+         {ok, UArgsNew} ->
+            {noreply, State#{user_args := UArgsNew}, ?TIMEOUT}
+    catch _:_ ->
+            fstream_utils:inform_caller(CPid, {transcoding_status, {error, audio_local_store}}),
+            {stop, abort, State}
+    end;
 
 handle_cast(Request, State) ->
     lager:log(info, [], "received unkown cast ~p~n", [Request]),
@@ -51,8 +57,12 @@ handle_cast(Request, State) ->
 handle_info(Info, State) ->
     fstream_utils:handle_info(Info, State).
 
+terminate(abort, State) ->
+    fstream_utils:terminate(abort, State);
+
 terminate(Reason, #{tmp_store_path := FilePath,
-                    duration := TDuration, caller := CPid} = State) ->
+                    duration       := TDuration,
+                    caller         := CPid} = State) ->
     FileInfo       = ffmpeg:infos(FilePath),
     BMediaDuration = FileInfo#ffmpeg_movie_info.format#ffmpeg_format_info.duration,
     MediaDuration  = ?B2F(BMediaDuration),
@@ -60,7 +70,7 @@ terminate(Reason, #{tmp_store_path := FilePath,
 
     case round(MediaDuration) >= trunc(TDuration) of
         true  -> fstream_utils:inform_caller(CPid, {transcoding_status, {ok, success}});
-        false -> fstream_utils:inform_caller(CPid, {transcoding_status, {error, timeout}})
+        false -> fstream_utils:inform_caller(CPid, {transcoding_status, {error, duration_mismatch}})
     end,
     fstream_utils:terminate(Reason, State).
 
