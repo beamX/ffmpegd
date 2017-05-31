@@ -21,7 +21,7 @@
 
 -define(B2F(X), erlang:binary_to_float(X)).
 -define(B2I(X), erlang:binary_to_integer(X)).
--define(TIMEOUT, 5000).
+-define(TIMEOUT, 10000).
 
 
 get_port(Pid) ->
@@ -125,7 +125,7 @@ handle_cast({upload_part, MetaData}, #{parts        := Parts,
 
 handle_cast({recv_part, Bin}, #{parts := Parts} = State) ->
     Parts1 = [Bin | Parts],
-    {noreply, State#{parts => Parts1}};
+    {noreply, State#{parts => Parts1}, ?TIMEOUT};
 handle_cast(Request, State) ->
     lager:log(info, [], "received unkown cast ~p~n", [Request]),
     {noreply, State}.
